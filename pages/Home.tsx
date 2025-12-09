@@ -111,6 +111,17 @@ const Home: React.FC = () => {
                   </p>
                 </div>
               </div>
+              <div className="flex gap-4">
+                 <div className="w-12 h-12 flex-shrink-0 rounded-full bg-slate-800 flex items-center justify-center border border-white/10">
+                  <span className="text-xl font-bold text-gray-400">3</span>
+                </div>
+                <div>
+                  <h4 className="text-xl font-semibold text-white mb-2">Black Box Predictions Kill Trust</h4>
+                  <p className="text-gray-400 leading-relaxed">
+                    Most models don't explain their reasoning. SparkNet uses LIME and SHAP to show exactly which factors (wind, humidity, vegetation) drive each prediction, building trust with fire authorities.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
           

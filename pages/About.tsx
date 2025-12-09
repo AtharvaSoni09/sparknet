@@ -77,10 +77,10 @@ const About: React.FC = () => {
                 <h2 className="text-2xl font-bold text-white">The Tech Stack</h2>
             </div>
             <p className="text-gray-400 mb-6 text-sm leading-relaxed">
-                Built with Python and deployed via scalable cloud infrastructure. We prioritize interpretability using SHAP and LIME tools.
+                Built with Python for model development, incorporating interpretability tools to ensure transparency in predictions. 
             </p>
             <div className="flex flex-wrap gap-2">
-                {['Python', 'TensorFlow', 'Keras', 'Scikit-Learn', 'Pandas', 'NumPy', 'Seaborn', 'SMOGN', 'React'].map((tech) => (
+                {['Python', 'TensorFlow', 'Keras', 'Scikit-Learn', 'Pandas', 'NumPy', 'Seaborn', 'SMOGN', 'SHAP', 'LIME', 'React'].map((tech) => (
                     <span key={tech} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-gray-300">
                         {tech}
                     </span>
@@ -92,7 +92,7 @@ const About: React.FC = () => {
                     Model Architecture
                 </h4>
                 <p className="text-xs text-gray-400">
-                    Deep learning neural network optimized for tabular environmental data, utilizing SMOGN for synthetic minority over-sampling to handle rare, extreme fire events.
+                    We use XGBoost, an ensemble tree-based model that delivers robust accuracy while remaining interpretable. This allows fire authorities to understand both the prediction and the underlying reasoning. Further, we utilize SMOGN for synthetic minority over-sampling to handle rare, extreme fire events.
                 </p>
             </div>
         </GlassCard>
@@ -189,6 +189,50 @@ const About: React.FC = () => {
                         <p className="text-gray-500 text-xs mt-3">Green = increases fire size | Red = decreases fire size</p>
                     </div>
                 </GlassCard>
+            </div>
+        </div>
+      </section>
+
+      {/* SHAP Global Feature Impact Section */}
+      <section>
+        <div className="flex flex-col md:flex-row gap-12 items-center">
+            <div className="md:w-1/2 w-full">
+                <GlassCard className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">Global Feature Impact (SHAP)</h3>
+                        <p className="text-xs text-gray-400 mb-6">
+                            This visualization shows how each feature impacts predictions across all training data. Red indicates high feature values, blue indicates low values. Position shows the direction and magnitude of impact.
+                        </p>
+                    </div>
+
+                    <div className="space-y-6">
+                        <img 
+                            src="/sparknetshapplotenhanced.png" 
+                            alt="SHAP Global Feature Impact Beeswarm Plot" 
+                            className="w-full h-auto bg-black rounded border border-white/10"
+                        />
+                    </div>
+
+                    <div className="border-t border-white/10 pt-4 mt-4">
+                        <p className="text-xs text-gray-500">
+                            <span className="text-red-400 font-semibold">Red</span> = High feature value | 
+                            <span className="text-blue-400 font-semibold ml-2">Blue</span> = Low feature value
+                        </p>
+                    </div>
+                </GlassCard>
+            </div>
+
+            <div className="md:w-1/2">
+                <h2 className="text-3xl font-bold text-white mb-4">Training Insights</h2>
+                <p className="text-gray-400 mb-6 leading-relaxed">
+                    Our model was trained using SHAP analysis to understand global feature importance. The visualization shows how each environmental factor influences fire severity predictions across our entire training dataset.
+                </p>
+                <p className="text-gray-400 mb-6 leading-relaxed">
+                    <span className="text-brand-orange font-semibold">Key Finding:</span> Humidity and population density are the strongest suppressors of fire predictions, while low humidity, vegetation density, and wind speed are the strongest amplifiers. This reflects real wildfire dynamics in Southern California.
+                </p>
+                <p className="text-gray-400 leading-relaxed text-sm text-gray-500">
+                    Unlike black-box models, this transparency allows us to validate that the model learned realistic relationships between weather and fire behavior.
+                </p>
             </div>
         </div>
       </section>
