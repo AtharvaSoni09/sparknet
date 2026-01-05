@@ -17,6 +17,13 @@ interface ExplainResult extends PredictionResult {
   input_features: Record<string, number>;
 }
 
+// Extend ImportMeta interface for Vite env vars
+interface ImportMetaEnv {
+  VITE_API_URL?: string;
+}
+
+declare const importMeta: ImportMetaEnv & ImportMeta;
+
 
 const emptyFeatures = {
   temp_max_F: '',
@@ -49,7 +56,12 @@ const Product: React.FC = () => {
       const numericFeatures = Object.fromEntries(
         Object.entries(features).map(([k, v]) => [k, v === '' ? null : Number(v)])
       );
-      const res = await fetch('http://127.0.0.1:8000/explain', {
+      
+      // Use environment-aware API URL
+      const API_URL = import.meta.env?.VITE_API_URL || 'http://127.0.0.1:8000';
+      console.log('Using API URL:', API_URL);
+      
+      const res = await fetch(`${API_URL}/explain`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(numericFeatures),
