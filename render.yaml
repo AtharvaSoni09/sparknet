@@ -1,23 +1,27 @@
 services:
-  # Backend API Service
+  # Backend API Service (deploy this first)
   - type: web
   name: sparknet-api
   env: python
   buildCommand: pip install -r fire-pred-mvp-main/requirements.txt
   startCommand: gunicorn fire-pred-mvp-main.main:app --host 0.0.0.0 --port $PORT
   healthCheckPath: /explain
+  plan: free
 
-  # Frontend Static Site  
+  # Frontend Static Site (deploy this second)
   - type: web
   name: sparknet-frontend
   env: static
   buildCommand: npm install && npm run build
   staticPublishPath: ./dist
   healthCheckPath: /
+  plan: free
+  dependsOn:
+    - sparknet-api
 
 # Global environment variables
-  envVars:
-    - key: NODE_VERSION
-      value: 18
-    - key: PYTHON_VERSION
-      value: 3.9
+envVars:
+  - key: NODE_VERSION
+    value: 18
+  - key: PYTHON_VERSION
+    value: 3.9
