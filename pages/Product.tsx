@@ -1,4 +1,3 @@
-import './cache-bust.js';
 import React, { useState } from 'react';
 import GlassCard from '@/components/GlassCard';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -23,7 +22,16 @@ interface ImportMetaEnv {
   VITE_API_URL?: string;
 }
 
-declare const importMeta: ImportMetaEnv & ImportMeta;
+interface ImportMeta {
+  env: ImportMetaEnv;
+}
+
+// Extend the global ImportMeta interface
+declare global {
+  interface ImportMeta {
+    env: ImportMetaEnv;
+  }
+}
 
 
 const emptyFeatures = {
