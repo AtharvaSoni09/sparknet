@@ -58,10 +58,10 @@ const Product: React.FC = () => {
       );
       
       // Use environment-aware API URL
-      const API_URL = import.meta.env?.VITE_API_URL || 'https://sparknet-fire-potential-mvp.onrender.com/api/explain';
+      const API_URL = import.meta.env?.VITE_API_URL || 'https://sparknet-fire-potential-mvp.onrender.com/explain';
       console.log('Using API URL:', API_URL);
       
-      const res = await fetch(`${API_URL}/explain`, {
+      const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(numericFeatures),

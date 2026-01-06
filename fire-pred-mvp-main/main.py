@@ -31,17 +31,17 @@ class Features(BaseModel):
     pop_density: float
     slope: float
 
-@app.post("/predict")
+@app.post("/api/predict")
 def predict(features: Features):
-    print("[SERVER] /predict called", file=sys.stderr)
+    print("[SERVER] /api/predict called", file=sys.stderr)
     print("[SERVER] Features:", features.dict(), file=sys.stderr)
     result = service.predict(features.dict())
     print("[SERVER] Prediction result:", result, file=sys.stderr)
     return result
 
-@app.post("/explain")
+@app.post("/api/explain")
 def explain(features: Features):
-    print("[SERVER] /explain called", file=sys.stderr)
+    print("[SERVER] /api/explain called", file=sys.stderr)
     features_dict = features.dict()
     # Log and coerce all values to float
     for k, v in features_dict.items():
