@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import GlassCard from '@/components/GlassCard';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 
 interface PredictionResult {
   prediction_log: number;
@@ -112,6 +112,9 @@ const Product: React.FC = () => {
                 {key === 'slope' && (
                   <span className="text-xs text-gray-400 ml-1">(rise/run * 100)</span>
                 )}
+                {key === 'ndvi' && (
+                  <span className="text-xs text-gray-400 ml-1">(0-6000: vegetation index, low=less fuel, high=more fuel)</span>
+                )}
               </label>
               <input
                 type="number"
@@ -177,10 +180,112 @@ const Product: React.FC = () => {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={result.lime_explanation} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="feature" tick={{ fill: '#fff' }} angle={-45} textAnchor="end" height={80} />
+              <XAxis 
+                dataKey="feature" 
+                tick={{ fill: '#fff', fontSize: 12 }} 
+                angle={-45} 
+                textAnchor="end" 
+                height={80}
+                tickFormatter={(value: string) => {
+                  console.log('Original value:', value);
+                  console.log('Split on space:', value.split(' '));
+                  console.log('Split on >=:', value.split(/[<>=]/));
+                  console.log('Split on (:', value.split('('));
+                  
+                  // Map to clean feature names
+                  const featureMap: Record<string, string> = {
+                    'temp_max_F': 'temp max F',
+                    'humidity_pct': 'humidity pct',
+                    'windspeed_mph': 'windspeed mph',
+                    'precip_in': 'precip in',
+                    'ndvi': 'ndvi',
+                    'pop_density': 'pop density',
+                    'slope': 'slope'
+                  };
+                  
+                  // Try multiple extraction methods
+                  let cleanName = '';
+                  
+                  // Method 1: Split on comparison operators
+                  if (value.includes('<') || value.includes('>') || value.includes('=')) {
+                    // Extract feature name from middle of string
+                    const match = value.match(/([a-zA-Z_]+)(?=\s*[<>=])/);
+                    if (match) {
+                      cleanName = match[1];
+                    } else {
+                      // Fallback: split and get middle part
+                      const parts = value.split(/[<>=]/);
+                      cleanName = parts[1] || parts[0];
+                    }
+                    console.log('Method 1 - Comparison split:', cleanName);
+                  } 
+                  // Method 2: Split on parenthesis
+                  else if (value.includes('(')) {
+                    cleanName = value.split('(')[0];
+                    console.log('Method 2 - Parenthesis split:', cleanName);
+                  }
+                  // Method 3: Split on space
+                  else if (value.includes(' ')) {
+                    cleanName = value.split(' ')[0];
+                    console.log('Method 3 - Space split:', cleanName);
+                  }
+                  // Method 4: Use mapping
+                  else {
+                    cleanName = featureMap[value] || value;
+                    console.log('Method 4 - Mapping:', cleanName);
+                  }
+                  
+                  // Final cleanup
+                  cleanName = cleanName.replace(/[^a-zA-Z_]/g, '');
+                  console.log('Final cleaned name:', cleanName);
+                  return cleanName;
+                }}
+              />
               <YAxis tick={{ fill: '#fff' }} />
-              <Tooltip formatter={(value: number) => value.toFixed(4)} contentStyle={{ backgroundColor: '#333', border: 'none' }} />
-              <Bar dataKey="weight" fill="#fb923c" />
+              <Tooltip 
+                formatter={(value: number) => value.toFixed(4)} 
+                contentStyle={{ backgroundColor: '#333', border: 'none' }}
+                labelFormatter={(label: string) => {
+                  console.log('Tooltip label:', label);
+                  
+                  // Use same logic as X-axis
+                  let cleanName: string;
+                  
+                  if (label.includes('<') || label.includes('>') || label.includes('=')) {
+                    const parts = label.split(/[<>=]/);
+                    cleanName = parts[0];
+                  } else if (label.includes('(')) {
+                    cleanName = label.split('(')[0];
+                  } else if (label.includes(' ')) {
+                    cleanName = label.split(' ')[0];
+                  } else {
+                    const featureMap: Record<string, string> = {
+                      'temp_max_F': 'temp max F',
+                      'humidity_pct': 'humidity pct',
+                      'windspeed_mph': 'windspeed mph',
+                      'precip_in': 'precip in',
+                      'ndvi': 'ndvi',
+                      'pop_density': 'pop density',
+                      'slope': 'slope'
+                    };
+                    
+                    let baseName = label.split(/[<>=]/)[0];
+                    baseName = baseName.split('(')[0];
+                    cleanName = featureMap[baseName] || baseName.replace(/[^a-zA-Z_]/g, '');
+                  }
+                  
+                  console.log('Tooltip cleaned name:', cleanName);
+                  return cleanName;
+                }}
+              />
+              <Bar dataKey="weight" name="Feature Impact">
+                {result.lime_explanation.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.weight >= 0 ? '#10b981' : '#ef4444'} 
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </GlassCard>
