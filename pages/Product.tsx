@@ -1,3 +1,4 @@
+import './cache-bust.js';
 import React, { useState } from 'react';
 import GlassCard from '@/components/GlassCard';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
