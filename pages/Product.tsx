@@ -49,6 +49,7 @@ const Product: React.FC = () => {
   const [result, setResult] = useState<ExplainResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingStage, setLoadingStage] = useState<string>('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -60,21 +61,30 @@ const Product: React.FC = () => {
     setLoading(true);
     setError(null);
     setResult(null);
+    setLoadingStage('Preparing prediction data...');
+    
     try {
       // Convert all feature values to numbers before sending
       const numericFeatures = Object.fromEntries(
         Object.entries(features).map(([k, v]) => [k, v === '' ? null : Number(v)])
       );
       
+      setLoadingStage('Connecting to AI model...');
+      
       // Use environment-aware API URL
       const API_URL = import.meta.env?.VITE_API_URL || 'https://sparknet-fire-potential-mvp.onrender.com/explain';
       console.log('Using API URL:', API_URL);
+      
+      setLoadingStage('Analyzing environmental factors...');
       
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(numericFeatures),
       });
+      
+      setLoadingStage('Generating LIME explanations...');
+      
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
       setResult(data);
@@ -83,6 +93,7 @@ const Product: React.FC = () => {
       setError('Failed to get prediction.');
     } finally {
       setLoading(false);
+      setLoadingStage('');
     }
   };
 
@@ -93,7 +104,15 @@ const Product: React.FC = () => {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Object.entries(features).map(([key, value]) => (
             <div key={key} className="flex flex-col">
-              <label htmlFor={key} className="text-sm font-semibold mb-1 capitalize text-gray-200">{key.replace(/_/g, ' ')}</label>
+              <label htmlFor={key} className="text-sm font-semibold mb-1 capitalize text-gray-200">
+                {key.replace(/_/g, ' ')}
+                {key === 'pop_density' && (
+                  <span className="text-xs text-gray-400 ml-1">(people/square km)</span>
+                )}
+                {key === 'slope' && (
+                  <span className="text-xs text-gray-400 ml-1">(rise/run * 100)</span>
+                )}
+              </label>
               <input
                 type="number"
                 id={key}
@@ -108,15 +127,47 @@ const Product: React.FC = () => {
           <div className="md:col-span-2 flex justify-center mt-4">
             <button
               type="submit"
-              className="px-8 py-3 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all duration-300"
+              className="px-8 py-3 bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all duration-300 flex items-center gap-2"
               disabled={loading}
             >
-              {loading ? 'Predicting...' : 'Predict Fire Size'}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Processing...</span>
+                </>
+              ) : (
+                'Predict Fire Size'
+              )}
             </button>
           </div>
         </form>
         {error && <div className="text-red-400 mt-4 text-center">{error}</div>}
       </GlassCard>
+
+      {loading && (
+        <GlassCard className="p-6 mt-8">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <h3 className="text-xl font-semibold mb-2 text-brand-orange">Analyzing Wildfire Risk</h3>
+            <p className="text-gray-300 mb-4">{loadingStage}</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                <div className="w-2 h-2 bg-brand-orange rounded-full animate-pulse"></div>
+                <span>Processing environmental data...</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                <div className="w-2 h-2 bg-brand-orange rounded-full animate-pulse delay-75"></div>
+                <span>Running AI predictions...</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                <div className="w-2 h-2 bg-brand-orange rounded-full animate-pulse delay-150"></div>
+                <span>Generating feature importance...</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-4">This usually takes 6-7 seconds for detailed analysis</p>
+          </div>
+        </GlassCard>
+      )}
 
       {result && (
         <GlassCard className="p-6 mt-8">
