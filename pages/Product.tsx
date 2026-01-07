@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GlassCard from '@/components/GlassCard';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 
@@ -50,6 +50,29 @@ const Product: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingStage, setLoadingStage] = useState<string>('');
+
+  // Keep API server alive with periodic health checks
+  useEffect(() => {
+    const healthCheck = async () => {
+      try {
+        const API_URL = import.meta.env?.VITE_API_URL || 'https://sparknet-fire-potential-mvp.onrender.com/explain';
+        // Simple GET request to keep server awake - use base URL
+        const baseUrl = API_URL.replace('/explain', '');
+        await fetch(baseUrl, { method: 'HEAD' });
+        console.log('Health check: API server kept alive');
+      } catch (err) {
+        console.log('Health check failed (expected if server is sleeping):', err);
+      }
+    };
+
+    // Check every 5 minutes (300000 ms)
+    const interval = setInterval(healthCheck, 300000);
+    
+    // Initial check on component mount
+    healthCheck();
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
