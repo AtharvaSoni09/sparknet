@@ -65,8 +65,8 @@ const Product: React.FC = () => {
       }
     };
 
-    // Check every 5 minutes (300000 ms)
-    const interval = setInterval(healthCheck, 300000);
+    // Check every 30 seconds (30000 ms)
+    const interval = setInterval(healthCheck, 30000);
     
     // Initial check on component mount
     healthCheck();
@@ -137,6 +137,18 @@ const Product: React.FC = () => {
                 )}
                 {key === 'ndvi' && (
                   <span className="text-xs text-gray-400 ml-1">(0-6000: vegetation index, low=less fuel, high=more fuel)</span>
+                )}
+                {key === 'windspeed_mph' && (
+                  <span className="text-xs text-gray-400 ml-1">(wind speed in miles per hour)</span>
+                )}
+                {key === 'temp_max_F' && (
+                  <span className="text-xs text-gray-400 ml-1">(maximum temperature in Fahrenheit)</span>
+                )}
+                {key === 'humidity_pct' && (
+                  <span className="text-xs text-gray-400 ml-1">(relative humidity percentage)</span>
+                )}
+                {key === 'precip_in' && (
+                  <span className="text-xs text-gray-400 ml-1">(precipitation in inches)</span>
                 )}
               </label>
               <input
