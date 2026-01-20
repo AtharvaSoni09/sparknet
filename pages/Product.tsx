@@ -484,52 +484,6 @@ Example format:
             </div>
           )}
           
-          {/* Raw Sensitivity Data */}
-          {sensitivityData && (
-            <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/20">
-              <h3 className="text-lg font-semibold mb-2 text-brand-orange">📊 Raw Sensitivity Data</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                {Object.entries(sensitivityData.sensitivities).map(([feature, data]) => (
-                  <div key={feature} className="flex justify-between p-2 bg-white/10 rounded">
-                    <span className="font-medium">{feature.replace(/_/g, ' ')}</span>
-                    <span className={`font-bold ${(data as any).gradient_log_scale > 0 ? 'text-red-400' : 'text-blue-400'}`}>
-                      {(data as any).gradient_log_scale.toFixed(6)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Sensitivity Leaderboard */}
-          {sensitivityData && (
-            <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/20">
-              <h3 className="text-lg font-semibold mb-2 text-brand-orange">🏆 Sensitivity Leaderboard</h3>
-              <div className="space-y-2">
-                {Object.entries(sensitivityData.sensitivities)
-                  .sort(([,a], [,b]) => Math.abs((b as any).gradient_log_scale) - Math.abs((a as any).gradient_log_scale))
-                  .map(([feature, data], index) => {
-                    const cleanFeature = feature.replace(/_/g, ' ');
-                    const impact = (data as any).gradient_log_scale > 0 ? 'increases' : 'decreases';
-                    const impactColor = (data as any).gradient_log_scale > 0 ? 'text-red-400' : 'text-blue-400';
-                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
-                    
-                    return (
-                      <div key={feature} className="flex items-center justify-between p-2 bg-white/10 rounded">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold">{medal}</span>
-                          <span className="font-medium">{cleanFeature}</span>
-                        </div>
-                        <div className={`text-sm ${impactColor}`}>
-                          {impact} risk ({Math.abs((data as any).gradient_log_scale).toFixed(4)})
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-          
           {/* GPT Recommendations */}
           {(gptRecommendations || gptLoading) && (
             <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/20">
