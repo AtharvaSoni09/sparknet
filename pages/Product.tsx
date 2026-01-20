@@ -15,24 +15,12 @@ interface LimeExplanation {
 interface ExplainResult extends PredictionResult {
   lime_explanation: LimeExplanation[];
   input_features: Record<string, number>;
+  sensitivities?: Record<string, {gradient_log_scale: number}>;
 }
 
-// Extend ImportMeta interface for Vite env vars
-interface ImportMetaEnv {
-  VITE_API_URL?: string;
+interface SensitivityResult extends PredictionResult {
+  sensitivities: Record<string, {gradient_log_scale: number}>;
 }
-
-interface ImportMeta {
-  env: ImportMetaEnv;
-}
-
-// Extend the global ImportMeta interface
-declare global {
-  interface ImportMeta {
-    env: ImportMetaEnv;
-  }
-}
-
 
 const emptyFeatures = {
   temp_max_F: '',
@@ -47,6 +35,9 @@ const emptyFeatures = {
 const Product: React.FC = () => {
   const [features, setFeatures] = useState<any>(emptyFeatures);
   const [result, setResult] = useState<ExplainResult | null>(null);
+  const [sensitivityData, setSensitivityData] = useState<SensitivityResult | null>(null);
+  const [gptRecommendations, setGptRecommendations] = useState<string>('');
+  const [gptLoading, setGptLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingStage, setLoadingStage] = useState<string>('');
@@ -79,11 +70,90 @@ const Product: React.FC = () => {
     setFeatures({ ...features, [name]: value });
   };
 
+  const getGPTRecommendations = async (sensitivityData: SensitivityResult) => {
+    try {
+      setGptLoading(true);
+      const sensitivities = sensitivityData.sensitivities;
+      const sortedFeatures = Object.entries(sensitivities)
+        .sort(([,a], [,b]) => Math.abs(b.gradient_log_scale) - Math.abs(a.gradient_log_scale))
+        .map(([feature, data]) => ({
+          feature: feature.replace(/_/g, ' '),
+          sensitivity: data.gradient_log_scale,
+          impact: data.gradient_log_scale > 0 ? 'increases' : 'decreases'
+        }));
+
+      const prompt = `Based on this wildfire sensitivity analysis, provide specific firefighting recommendations:
+
+RAW SENSITIVITY DATA (Complete Dataset):
+${Object.entries(sensitivities).map(([feature, data]) => `${feature}: ${data.gradient_log_scale.toFixed(6)}`).join('\n')}
+
+Top affecting features (by sensitivity magnitude):
+${sortedFeatures.map(f => `• ${f.feature}: ${f.impact} fire risk (sensitivity: ${f.sensitivity.toFixed(4)})`).join('\n')}
+
+Current prediction: ${sensitivityData.prediction_acres.toFixed(2)} acres
+
+IMPORTANT: Analyze ALL raw sensitivity data above. Each feature's gradient_log_scale value shows exactly how much it impacts fire prediction. Positive values increase fire risk, negative values decrease it.
+
+Provide actionable recommendations for firefighters based on which features most impact fire risk. Focus on:
+1. Techniques to reduce high-risk factors
+2. Strategies for low-risk factors 
+3. Environmental management suggestions
+4. Safety protocols
+
+FORMAT REQUIREMENTS:
+- Put each complete recommendation on a NEW LINE
+- Start each line with a number (1., 2., 3., etc.)
+- Keep each recommendation concise but complete
+- Maximum 6 recommendations
+- Each recommendation should be one complete thought
+- Each recomendation should be on the same line. Then, for the next reccomendation, it should be on a NEW LINE.
+- GIVE SPECIFIC AND ACTIONABLE RECCOMENDATIONS. DONT BE VAGUE.
+- MAKE SURE EACH RECCOMENDATION HAS SPECIFIC FEATURE REFERENCED AFTER THE BASE RECOMMENDATION. in other words, add the feature's raw sensitivity data AFTER
+
+More instructions:
+- ensure that recommendations are actionable and specific
+- ensure that recommendations are based on raw sensitivity data provided
+- ensure that reccomendations are POSSIBLE in a TIMELY MANNER
+- REFERENCE SPECIFIC DATA FROM SENS FROM THE RAW SENSITIVITY DATA PROVIDED IN YOUR RECS
+        - (add to end of recommendation)
+- examples below are ONLY examples.if they break any of these rules, dont use it.
+Example format:
+1. Deploy water retardant in high humidity areas to reduce fire spread (humidity_pct: -0.446194).
+2. Create fire breaks in regions with high wind speeds. (wind_mph: 0.324567)
+3. Use controlled burns to manage vegetation density in high NDVI areas. (ndvi: 0.234567)`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 500
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const recommendation = data.choices[0]?.message?.content || 'No recommendations available';
+        setGptRecommendations(recommendation);
+      }
+    } catch (err) {
+      console.error('GPT API error:', err);
+      setGptRecommendations('Failed to get AI recommendations.');
+    } finally {
+      setGptLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setResult(null);
+    setSensitivityData(null);
     setLoadingStage('Preparing prediction data...');
     
     try {
@@ -111,6 +181,25 @@ const Product: React.FC = () => {
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
       setResult(data);
+      
+      // Also get sensitivity data
+      setLoadingStage('Getting recommendations...');
+      const sensitivityUrl = API_URL.replace('/explain', '/sensitivity');
+      const sensitivityRes = await fetch(sensitivityUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(numericFeatures),
+      });
+      
+      if (sensitivityRes.ok) {
+        const sensitivityData = await sensitivityRes.json();
+        setSensitivityData(sensitivityData);
+        
+        // Get ChatGPT recommendations
+        setLoadingStage('Getting AI recommendations...');
+        await getGPTRecommendations(sensitivityData);
+      }
+      
     } catch (err) {
       console.error('Prediction error:', err);
       setError('Failed to get prediction.');
@@ -211,7 +300,39 @@ const Product: React.FC = () => {
         <GlassCard className="p-6 mt-8">
           <h2 className="text-2xl font-semibold mb-2 text-brand-orange">Prediction</h2>
           <div className="text-lg mb-4">Estimated Fire Size: <span className="font-bold text-orange-300">{result.prediction_acres.toFixed(2)} acres</span></div>
-          <h3 className="text-xl font-semibold mb-2 mt-6">Feature Importance (LIME)</h3>
+          
+          {/* Most Affecting Feature */}
+          {sensitivityData && (
+            <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/20">
+              <h3 className="text-lg font-semibold mb-2 text-brand-orange">🔥 Most Affecting Feature</h3>
+              {(() => {
+                const sensitivities = sensitivityData.sensitivities;
+                const mostAffecting = Object.entries(sensitivities).reduce((max, [feature, data]) => {
+                  const absValue = Math.abs((data as any).gradient_log_scale);
+                  const maxAbsValue = Math.abs((max[1] as any)?.gradient_log_scale || 0);
+                  return absValue > maxAbsValue ? [feature, data] : max;
+                }, ['', {gradient_log_scale: 0}]);
+                
+                const [feature, data] = mostAffecting;
+                const cleanFeature = feature.replace(/_/g, ' ');
+                const impact = (data as any).gradient_log_scale > 0 ? 'increases' : 'decreases';
+                const impactColor = (data as any).gradient_log_scale > 0 ? 'text-red-400' : 'text-blue-400';
+                
+                return (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold mb-2">{cleanFeature}</div>
+                    <div className={`text-lg ${impactColor}`}>
+                      {impact} fire risk (sensitivity: {(data as any).gradient_log_scale.toFixed(4)})
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          
+          {/* Feature Importance */}
+          <div className="bg-white/5 rounded-lg border border-white/20 p-4">
+            <h3 className="text-xl font-semibold mb-2 mt-6">Feature Importance (LIME)</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={result.lime_explanation} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#444" />
@@ -323,6 +444,170 @@ const Product: React.FC = () => {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </div>
+          
+          {/* Sensitivity Analysis (SIDE) */}
+          {sensitivityData && (
+            <div className="bg-white/5 rounded-lg border border-white/20 p-4 mt-6">
+              <h3 className="text-xl font-semibold mb-2">Sensitivity Analysis (SIDE)</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart 
+                  data={Object.entries(sensitivityData.sensitivities).map(([feature, data]) => ({
+                    feature: feature.replace(/_/g, ' '),
+                    sensitivity: (data as any).gradient_log_scale
+                  }))} 
+                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <XAxis 
+                    dataKey="feature" 
+                    tick={{ fill: '#fff', fontSize: 12 }} 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={80}
+                  />
+                  <YAxis tick={{ fill: '#fff' }} />
+                  <Tooltip 
+                    formatter={(value: number) => value.toFixed(4)} 
+                    contentStyle={{ backgroundColor: '#333', border: 'none' }}
+                  />
+                  <Bar dataKey="sensitivity" name="Sensitivity Impact">
+                    {Object.entries(sensitivityData.sensitivities).map(([feature, data]) => (
+                      <Cell 
+                        key={`cell-${feature}`} 
+                        fill={(data as any).gradient_log_scale >= 0 ? '#ef4444' : '#3b82f6'} 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          
+          {/* Raw Sensitivity Data */}
+          {sensitivityData && (
+            <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/20">
+              <h3 className="text-lg font-semibold mb-2 text-brand-orange">📊 Raw Sensitivity Data</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                {Object.entries(sensitivityData.sensitivities).map(([feature, data]) => (
+                  <div key={feature} className="flex justify-between p-2 bg-white/10 rounded">
+                    <span className="font-medium">{feature.replace(/_/g, ' ')}</span>
+                    <span className={`font-bold ${(data as any).gradient_log_scale > 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                      {(data as any).gradient_log_scale.toFixed(6)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Sensitivity Leaderboard */}
+          {sensitivityData && (
+            <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/20">
+              <h3 className="text-lg font-semibold mb-2 text-brand-orange">🏆 Sensitivity Leaderboard</h3>
+              <div className="space-y-2">
+                {Object.entries(sensitivityData.sensitivities)
+                  .sort(([,a], [,b]) => Math.abs((b as any).gradient_log_scale) - Math.abs((a as any).gradient_log_scale))
+                  .map(([feature, data], index) => {
+                    const cleanFeature = feature.replace(/_/g, ' ');
+                    const impact = (data as any).gradient_log_scale > 0 ? 'increases' : 'decreases';
+                    const impactColor = (data as any).gradient_log_scale > 0 ? 'text-red-400' : 'text-blue-400';
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
+                    
+                    return (
+                      <div key={feature} className="flex items-center justify-between p-2 bg-white/10 rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold">{medal}</span>
+                          <span className="font-medium">{cleanFeature}</span>
+                        </div>
+                        <div className={`text-sm ${impactColor}`}>
+                          {impact} risk ({Math.abs((data as any).gradient_log_scale).toFixed(4)})
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+          
+          {/* GPT Recommendations */}
+          {(gptRecommendations || gptLoading) && (
+            <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/20">
+              <h3 className="text-lg font-semibold mb-4 text-brand-orange">Recommendations</h3>
+              
+              {gptLoading ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                    <div className="w-4 h-4 border-2 border-brand-orange border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-white/20 rounded animate-pulse mb-2"></div>
+                      <div className="h-3 bg-white/10 rounded animate-pulse w-3/4"></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                    <div className="w-4 h-4 border-2 border-brand-orange border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-white/20 rounded animate-pulse mb-2"></div>
+                      <div className="h-3 bg-white/10 rounded animate-pulse w-2/3"></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                    <div className="w-4 h-4 border-2 border-brand-orange border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-white/20 rounded animate-pulse mb-2"></div>
+                      <div className="h-3 bg-white/10 rounded animate-pulse w-4/5"></div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(() => {
+                    // Parse recommendations more intelligently
+                    const lines = gptRecommendations.split('\n');
+                    const recommendations = [];
+                    let currentRecommendation = '';
+                    
+                    for (const line of lines) {
+                      const trimmedLine = line.trim();
+                      
+                      // Check if this is a new recommendation (starts with number/bullet)
+                      if (/^\d+\.|•|[-*]/.test(trimmedLine)) {
+                        // Save previous recommendation if exists
+                        if (currentRecommendation.trim()) {
+                          recommendations.push(currentRecommendation.trim());
+                        }
+                        // Start new recommendation (remove bullet/number)
+                        currentRecommendation = trimmedLine.replace(/^\d+\.|•|[-*]\s*/, '');
+                      } else if (trimmedLine.length > 0) {
+                        // Continue current recommendation
+                        currentRecommendation += ' ' + trimmedLine;
+                      }
+                    }
+                    
+                    // Add last recommendation
+                    if (currentRecommendation.trim()) {
+                      recommendations.push(currentRecommendation.trim());
+                    }
+                    
+                    return recommendations.map((recommendation, index) => (
+                      <div key={index} className="p-3 bg-white/10 rounded-lg border-l-4 border-brand-orange">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-brand-orange rounded-full flex items-center justify-center text-white text-xs font-bold mt-0.5">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-300 leading-relaxed">
+                              {recommendation}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
         </GlassCard>
       )}
     </div>
