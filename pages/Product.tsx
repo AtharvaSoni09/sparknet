@@ -73,6 +73,16 @@ const Product: React.FC = () => {
   const getGPTRecommendations = async (sensitivityData: SensitivityResult) => {
     try {
       setGptLoading(true);
+      
+      // Debug: Check if API key is available
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      console.log('API Key available:', !!apiKey);
+      console.log('API Key starts with:', apiKey?.substring(0, 10) + '...');
+      
+      if (!apiKey) {
+        throw new Error('OpenAI API key not found in environment variables');
+      }
+      
       const sensitivities = sensitivityData.sensitivities;
       const sortedFeatures = Object.entries(sensitivities)
         .sort(([,a], [,b]) => Math.abs(b.gradient_log_scale) - Math.abs(a.gradient_log_scale))
@@ -125,7 +135,7 @@ Example format:
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -135,11 +145,17 @@ Example format:
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const recommendation = data.choices[0]?.message?.content || 'No recommendations available';
-        setGptRecommendations(recommendation);
+      console.log('OpenAI Response Status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('OpenAI API Error Response:', errorData);
+        throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
       }
+      
+      const data = await response.json();
+      const recommendation = data.choices[0]?.message?.content || 'No recommendations available';
+      setGptRecommendations(recommendation);
     } catch (err) {
       console.error('GPT API error:', err);
       setGptRecommendations('Failed to get AI recommendations.');
@@ -176,9 +192,13 @@ Example format:
         body: JSON.stringify(numericFeatures),
       });
       
-      setLoadingStage('Generating LIME explanations...');
+      console.log('Prediction API Response Status:', res.status);
       
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) {
+        const errorData = await res.text();
+        console.error('Prediction API Error Response:', errorData);
+        throw new Error(`Prediction API error: ${res.status} - ${errorData}`);
+      }
       const data = await res.json();
       setResult(data);
       
@@ -301,40 +321,13 @@ Example format:
           <h2 className="text-2xl font-semibold mb-2 text-brand-orange">Prediction</h2>
           <div className="text-lg mb-4">Estimated Fire Size: <span className="font-bold text-orange-300">{result.prediction_acres.toFixed(2)} acres</span></div>
           
-          {/* Most Affecting Feature */}
-          {sensitivityData && (
-            <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/20">
-              <h3 className="text-lg font-semibold mb-2 text-brand-orange">🔥 Most Affecting Feature</h3>
-              {(() => {
-                const sensitivities = sensitivityData.sensitivities;
-                const mostAffecting = Object.entries(sensitivities).reduce((max, [feature, data]) => {
-                  const absValue = Math.abs((data as any).gradient_log_scale);
-                  const maxAbsValue = Math.abs((max[1] as any)?.gradient_log_scale || 0);
-                  return absValue > maxAbsValue ? [feature, data] : max;
-                }, ['', {gradient_log_scale: 0}]);
-                
-                const [feature, data] = mostAffecting;
-                const cleanFeature = feature.replace(/_/g, ' ');
-                const impact = (data as any).gradient_log_scale > 0 ? 'increases' : 'decreases';
-                const impactColor = (data as any).gradient_log_scale > 0 ? 'text-red-400' : 'text-blue-400';
-                
-                return (
-                  <div className="text-center">
-                    <div className="text-2xl font-bold mb-2">{cleanFeature}</div>
-                    <div className={`text-lg ${impactColor}`}>
-                      {impact} fire risk (sensitivity: {(data as any).gradient_log_scale.toFixed(4)})
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-          
           {/* Feature Importance */}
           <div className="bg-white/5 rounded-lg border border-white/20 p-4">
             <h3 className="text-xl font-semibold mb-2 mt-6">Feature Importance (LIME)</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={result.lime_explanation} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <BarChart 
+              data={result.lime_explanation.filter(item => !item.feature.includes('precip'))} 
+              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#444" />
               <XAxis 
                 dataKey="feature" 
@@ -452,7 +445,9 @@ Example format:
               <h3 className="text-xl font-semibold mb-2">Sensitivity Analysis (SIDE)</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart 
-                  data={Object.entries(sensitivityData.sensitivities).map(([feature, data]) => ({
+                  data={Object.entries(sensitivityData.sensitivities)
+                    .filter(([feature]) => !feature.includes('precip'))
+                    .map(([feature, data]) => ({
                     feature: feature.replace(/_/g, ' '),
                     sensitivity: (data as any).gradient_log_scale
                   }))} 
