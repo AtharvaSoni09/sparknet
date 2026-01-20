@@ -105,7 +105,7 @@ Current prediction: ${sensitivityData.prediction_acres.toFixed(2)} acres
 IMPORTANT: Analyze ALL raw sensitivity data above. Each feature's gradient_log_scale value shows exactly how much it impacts fire prediction. Positive values increase fire risk, negative values decrease it.
 
 CRITICAL: DO NOT mention precipitation, rain, or water-related weather in your recommendations. Focus on temperature, humidity, wind, vegetation, terrain, and population density factors only.
-
+- dont reference precipitation data at all
 Provide actionable recommendations for firefighters based on which features most impact fire risk. Focus on:
 1. Techniques to reduce high-risk factors
 2. Strategies for low-risk factors 
@@ -121,7 +121,7 @@ FORMAT REQUIREMENTS:
 - Each recomendation should be on the same line. Then, for the next reccomendation, it should be on a NEW LINE.
 - GIVE SPECIFIC AND ACTIONABLE RECCOMENDATIONS. DONT BE VAGUE.
 - MAKE SURE EACH RECCOMENDATION HAS SPECIFIC FEATURE REFERENCED AFTER THE BASE RECOMMENDATION. in other words, add the feature's raw sensitivity data AFTER
-
+- ENSURE U MAKE RECCOMENDATIONS
 More instructions:
 - ensure that recommendations are actionable and specific
 - ensure that recommendations are based on raw sensitivity data provided
@@ -135,12 +135,8 @@ Example format:
 2. Create fire breaks in regions with high wind speeds (windspeed_mph: 0.324567).
 3. Use controlled burns to manage vegetation density in high NDVI areas (ndvi: 0.234567).`;
 
-      // Fallback: Try with a mock response if OpenAI fails
-      const fallbackRecommendations = `1. Monitor weather conditions closely and prepare evacuation plans if fire risk increases (temp_max_F: high impact).
-2. Create fire breaks in high-risk areas to reduce potential fire spread (humidity_pct: moderate impact).
-3. Position firefighting equipment strategically in high wind areas (windspeed_mph: variable impact).
-4. Coordinate with local emergency services for rapid response (ndvi: vegetation monitoring needed).
-5. Consider controlled burns in safe conditions to reduce fuel load (slope: terrain factor considered).`;
+      // Fallback: Simple retry message if OpenAI fails
+      const fallbackRecommendations = 'Recommendations service temporarily unavailable. Please try prediction again.';
       
       let openaiResponse: Response | null = null;
       let lastError: Error | null = null;
