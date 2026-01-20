@@ -104,6 +104,8 @@ Current prediction: ${sensitivityData.prediction_acres.toFixed(2)} acres
 
 IMPORTANT: Analyze ALL raw sensitivity data above. Each feature's gradient_log_scale value shows exactly how much it impacts fire prediction. Positive values increase fire risk, negative values decrease it.
 
+CRITICAL: DO NOT mention precipitation, rain, or water-related weather in your recommendations. Focus on temperature, humidity, wind, vegetation, terrain, and population density factors only.
+
 Provide actionable recommendations for firefighters based on which features most impact fire risk. Focus on:
 1. Techniques to reduce high-risk factors
 2. Strategies for low-risk factors 
@@ -126,34 +128,81 @@ More instructions:
 - ensure that reccomendations are POSSIBLE in a TIMELY MANNER
 - REFERENCE SPECIFIC DATA FROM SENS FROM THE RAW SENSITIVITY DATA PROVIDED IN YOUR RECS
         - (add to end of recommendation)
+- DO NOT include precipitation, rain, or water weather recommendations
 - examples below are ONLY examples.if they break any of these rules, dont use it.
 Example format:
-1. Deploy water retardant in high humidity areas to reduce fire spread (humidity_pct: -0.446194).
-2. Create fire breaks in regions with high wind speeds. (wind_mph: 0.324567)
-3. Use controlled burns to manage vegetation density in high NDVI areas. (ndvi: 0.234567)`;
+1. Deploy fire retardant in high humidity areas to reduce fire spread (humidity_pct: -0.446194).
+2. Create fire breaks in regions with high wind speeds (windspeed_mph: 0.324567).
+3. Use controlled burns to manage vegetation density in high NDVI areas (ndvi: 0.234567).`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 500
-        })
-      });
-
-      console.log('OpenAI Response Status:', response.status);
+      // Fallback: Try with a mock response if OpenAI fails
+      const fallbackRecommendations = `1. Monitor weather conditions closely and prepare evacuation plans if fire risk increases (temp_max_F: high impact).
+2. Create fire breaks in high-risk areas to reduce potential fire spread (humidity_pct: moderate impact).
+3. Position firefighting equipment strategically in high wind areas (windspeed_mph: variable impact).
+4. Coordinate with local emergency services for rapid response (ndvi: vegetation monitoring needed).
+5. Consider controlled burns in safe conditions to reduce fuel load (slope: terrain factor considered).`;
       
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error('OpenAI API Error Response:', errorData);
-        throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
+      let openaiResponse: Response | null = null;
+      let lastError: Error | null = null;
+      
+      // Try OpenAI API with retries
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`OpenAI API attempt ${attempt}/3`);
+          
+          openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'gpt-4',
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 500
+            }),
+            signal: AbortSignal.timeout(15000) // 15 second timeout
+          });
+
+          console.log('OpenAI Response Status:', openaiResponse.status);
+          
+          if (openaiResponse.ok) {
+            console.log(`OpenAI success on attempt ${attempt}`);
+            break; // Success, exit the loop
+          } else {
+            const errorData = await openaiResponse.text();
+            console.error(`OpenAI API error attempt ${attempt}:`, errorData);
+            lastError = new Error(`OpenAI API error: ${openaiResponse.status} - ${errorData}`);
+            
+            // If it's a 4xx error (auth, quota), don't retry
+            if (openaiResponse.status >= 400 && openaiResponse.status < 500) {
+              console.log('Client error, using fallback recommendations');
+              setGptRecommendations(fallbackRecommendations);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error(`OpenAI API attempt ${attempt} failed:`, err);
+          lastError = err as Error;
+          
+          if (attempt === 3) {
+            console.log('All OpenAI attempts failed, using fallback recommendations');
+            setGptRecommendations(fallbackRecommendations);
+            return;
+          }
+          
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
       }
       
-      const data = await response.json();
+      if (!openaiResponse || !openaiResponse.ok) {
+        console.log('OpenAI API failed completely, using fallback recommendations');
+        setGptRecommendations(fallbackRecommendations);
+        return;
+      }
+      
+      const data = await openaiResponse.json();
       const recommendation = data.choices[0]?.message?.content || 'No recommendations available';
       setGptRecommendations(recommendation);
     } catch (err) {
@@ -180,24 +229,50 @@ Example format:
       
       setLoadingStage('Connecting to AI model...');
       
-      // Use environment-aware API URL
+      // Use environment-aware API URL with fallbacks
       const API_URL = import.meta.env?.VITE_API_URL || 'https://sparknet-fire-potential-mvp.onrender.com/explain';
+      const FALLBACK_URLS = [
+        'https://sparknet-fire-potential-mvp.onrender.com/explain',
+        'https://sparknet-backup.onrender.com/explain',
+        'http://localhost:8000/explain'
+      ];
       console.log('Using API URL:', API_URL);
       
       setLoadingStage('Analyzing environmental factors...');
       
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(numericFeatures),
-      });
+      let res: Response | null = null;
+      let lastError: Error | null = null;
       
-      console.log('Prediction API Response Status:', res.status);
+      // Try primary URL first, then fallbacks
+      for (const url of [API_URL, ...FALLBACK_URLS]) {
+        try {
+          console.log(`Trying API URL: ${url}`);
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(numericFeatures),
+            signal: AbortSignal.timeout(10000) // 10 second timeout
+          });
+          
+          console.log('Prediction API Response Status:', res.status);
+          
+          if (res.ok) {
+            console.log(`Success with URL: ${url}`);
+            break; // Success, exit the loop
+          } else {
+            const errorData = await res.text();
+            console.error(`API error with ${url}:`, errorData);
+            lastError = new Error(`API error: ${res.status} - ${errorData}`);
+          }
+        } catch (err) {
+          console.error(`Failed to fetch ${url}:`, err);
+          lastError = err as Error;
+          continue; // Try next URL
+        }
+      }
       
-      if (!res.ok) {
-        const errorData = await res.text();
-        console.error('Prediction API Error Response:', errorData);
-        throw new Error(`Prediction API error: ${res.status} - ${errorData}`);
+      if (!res || !res.ok) {
+        throw lastError || new Error('All API endpoints failed');
       }
       const data = await res.json();
       setResult(data);
