@@ -15,11 +15,11 @@ interface LimeExplanation {
 interface ExplainResult extends PredictionResult {
   lime_explanation: LimeExplanation[];
   input_features: Record<string, number>;
-  sensitivities?: Record<string, {gradient_log_scale: number}>;
+  sensitivities?: Record<string, { gradient_log_scale: number }>;
 }
 
 interface SensitivityResult extends PredictionResult {
-  sensitivities: Record<string, {gradient_log_scale: number}>;
+  sensitivities: Record<string, { gradient_log_scale: number }>;
 }
 
 const emptyFeatures = {
@@ -58,7 +58,7 @@ const Product: React.FC = () => {
 
     // Check every 30 seconds (30000 ms)
     const interval = setInterval(healthCheck, 30000);
-    
+
     // Initial check on component mount
     healthCheck();
 
@@ -73,19 +73,19 @@ const Product: React.FC = () => {
   const getGPTRecommendations = async (sensitivityData: SensitivityResult) => {
     try {
       setGptLoading(true);
-      
+
       // Debug: Check if API key is available
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      const apiKey = import.meta.env.VITE_GROQ_API_KEY;
       console.log('API Key available:', !!apiKey);
       console.log('API Key starts with:', apiKey?.substring(0, 10) + '...');
-      
+
       if (!apiKey) {
-        throw new Error('OpenAI API key not found in environment variables');
+        throw new Error('Groq API key not found in environment variables (VITE_GROQ_API_KEY)');
       }
-      
+
       const sensitivities = sensitivityData.sensitivities;
       const sortedFeatures = Object.entries(sensitivities)
-        .sort(([,a], [,b]) => Math.abs(b.gradient_log_scale) - Math.abs(a.gradient_log_scale))
+        .sort(([, a], [, b]) => Math.abs(b.gradient_log_scale) - Math.abs(a.gradient_log_scale))
         .map(([feature, data]) => ({
           feature: feature.replace(/_/g, ' '),
           sensitivity: data.gradient_log_scale,
@@ -136,40 +136,40 @@ Example format:
 3. Use controlled burns to manage vegetation density in high NDVI areas (ndvi: 0.234567).`;
 
       // Fallback: Simple retry message if OpenAI fails
-      const fallbackRecommendations = 'Recommendations service temporarily unavailable. Please try prediction again.';
-      
+      const fallbackRecommendations = 'Recommendations service temporarily unavailable. Please try prediction again. If issue persists, contact us.';
+
       let openaiResponse: Response | null = null;
       let lastError: Error | null = null;
-      
+
       // Try OpenAI API with retries
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          console.log(`OpenAI API attempt ${attempt}/3`);
-          
-          openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          console.log(`Groq API attempt ${attempt}/3`);
+
+          openaiResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              model: 'gpt-4',
+              model: 'llama-3.3-70b-versatile',
               messages: [{ role: 'user', content: prompt }],
               max_tokens: 500
             }),
             signal: AbortSignal.timeout(15000) // 15 second timeout
           });
 
-          console.log('OpenAI Response Status:', openaiResponse.status);
-          
+          console.log('Groq Response Status:', openaiResponse.status);
+
           if (openaiResponse.ok) {
-            console.log(`OpenAI success on attempt ${attempt}`);
+            console.log(`Groq success on attempt ${attempt}`);
             break; // Success, exit the loop
           } else {
             const errorData = await openaiResponse.text();
-            console.error(`OpenAI API error attempt ${attempt}:`, errorData);
-            lastError = new Error(`OpenAI API error: ${openaiResponse.status} - ${errorData}`);
-            
+            console.error(`Groq API error attempt ${attempt}:`, errorData);
+            lastError = new Error(`Groq API error: ${openaiResponse.status} - ${errorData}`);
+
             // If it's a 4xx error (auth, quota), don't retry
             if (openaiResponse.status >= 400 && openaiResponse.status < 500) {
               console.log('Client error, using fallback recommendations');
@@ -178,26 +178,26 @@ Example format:
             }
           }
         } catch (err) {
-          console.error(`OpenAI API attempt ${attempt} failed:`, err);
+          console.error(`Groq API attempt ${attempt} failed:`, err);
           lastError = err as Error;
-          
+
           if (attempt === 3) {
-            console.log('All OpenAI attempts failed, using fallback recommendations');
+            console.log('All Groq attempts failed, using fallback recommendations');
             setGptRecommendations(fallbackRecommendations);
             return;
           }
-          
+
           // Wait before retry (exponential backoff)
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
       }
-      
+
       if (!openaiResponse || !openaiResponse.ok) {
-        console.log('OpenAI API failed completely, using fallback recommendations');
+        console.log('Groq API failed completely, using fallback recommendations');
         setGptRecommendations(fallbackRecommendations);
         return;
       }
-      
+
       const data = await openaiResponse.json();
       const recommendation = data.choices[0]?.message?.content || 'No recommendations available';
       setGptRecommendations(recommendation);
@@ -216,15 +216,15 @@ Example format:
     setResult(null);
     setSensitivityData(null);
     setLoadingStage('Preparing prediction data...');
-    
+
     try {
       // Convert all feature values to numbers before sending
       const numericFeatures = Object.fromEntries(
         Object.entries(features).map(([k, v]) => [k, v === '' ? null : Number(v)])
       );
-      
+
       setLoadingStage('Connecting to AI model...');
-      
+
       // Use environment-aware API URL with fallbacks
       const API_URL = import.meta.env?.VITE_API_URL || 'https://sparknet-fire-potential-mvp.onrender.com/explain';
       const FALLBACK_URLS = [
@@ -233,12 +233,12 @@ Example format:
         'http://localhost:8000/explain'
       ];
       console.log('Using API URL:', API_URL);
-      
+
       setLoadingStage('Analyzing environmental factors...');
-      
+
       let res: Response | null = null;
       let lastError: Error | null = null;
-      
+
       // Try primary URL first, then fallbacks
       for (const url of [API_URL, ...FALLBACK_URLS]) {
         try {
@@ -249,9 +249,9 @@ Example format:
             body: JSON.stringify(numericFeatures),
             signal: AbortSignal.timeout(10000) // 10 second timeout
           });
-          
+
           console.log('Prediction API Response Status:', res.status);
-          
+
           if (res.ok) {
             console.log(`Success with URL: ${url}`);
             break; // Success, exit the loop
@@ -266,13 +266,13 @@ Example format:
           continue; // Try next URL
         }
       }
-      
+
       if (!res || !res.ok) {
         throw lastError || new Error('All API endpoints failed');
       }
       const data = await res.json();
       setResult(data);
-      
+
       // Also get sensitivity data
       setLoadingStage('Getting recommendations...');
       const sensitivityUrl = API_URL.replace('/explain', '/sensitivity');
@@ -281,16 +281,16 @@ Example format:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(numericFeatures),
       });
-      
+
       if (sensitivityRes.ok) {
         const sensitivityData = await sensitivityRes.json();
         setSensitivityData(sensitivityData);
-        
+
         // Get ChatGPT recommendations
         setLoadingStage('Getting AI recommendations...');
         await getGPTRecommendations(sensitivityData);
       }
-      
+
     } catch (err) {
       console.error('Prediction error:', err);
       setError('Failed to get prediction.');
@@ -391,94 +391,28 @@ Example format:
         <GlassCard className="p-6 mt-8">
           <h2 className="text-2xl font-semibold mb-2 text-brand-orange">Prediction</h2>
           <div className="text-lg mb-4">Estimated Fire Size: <span className="font-bold text-orange-300">{result.prediction_acres.toFixed(2)} acres</span></div>
-          
+
           {/* Feature Importance */}
           <div className="bg-white/5 rounded-lg border border-white/20 p-4">
             <h3 className="text-xl font-semibold mb-2 mt-6">Feature Importance (LIME)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart 
-              data={result.lime_explanation.filter(item => !item.feature.includes('precip'))} 
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis 
-                dataKey="feature" 
-                tick={{ fill: '#fff', fontSize: 12 }} 
-                angle={-45} 
-                textAnchor="end" 
-                height={80}
-                tickFormatter={(value: string) => {
-                  console.log('Original value:', value);
-                  console.log('Split on space:', value.split(' '));
-                  console.log('Split on >=:', value.split(/[<>=]/));
-                  console.log('Split on (:', value.split('('));
-                  
-                  // Map to clean feature names
-                  const featureMap: Record<string, string> = {
-                    'temp_max_F': 'temp max F',
-                    'humidity_pct': 'humidity pct',
-                    'windspeed_mph': 'windspeed mph',
-                    'precip_in': 'precip in',
-                    'ndvi': 'ndvi',
-                    'pop_density': 'pop density',
-                    'slope': 'slope'
-                  };
-                  
-                  // Try multiple extraction methods
-                  let cleanName = '';
-                  
-                  // Method 1: Split on comparison operators
-                  if (value.includes('<') || value.includes('>') || value.includes('=')) {
-                    // Extract feature name from middle of string
-                    const match = value.match(/([a-zA-Z_]+)(?=\s*[<>=])/);
-                    if (match) {
-                      cleanName = match[1];
-                    } else {
-                      // Fallback: split and get middle part
-                      const parts = value.split(/[<>=]/);
-                      cleanName = parts[1] || parts[0];
-                    }
-                    console.log('Method 1 - Comparison split:', cleanName);
-                  } 
-                  // Method 2: Split on parenthesis
-                  else if (value.includes('(')) {
-                    cleanName = value.split('(')[0];
-                    console.log('Method 2 - Parenthesis split:', cleanName);
-                  }
-                  // Method 3: Split on space
-                  else if (value.includes(' ')) {
-                    cleanName = value.split(' ')[0];
-                    console.log('Method 3 - Space split:', cleanName);
-                  }
-                  // Method 4: Use mapping
-                  else {
-                    cleanName = featureMap[value] || value;
-                    console.log('Method 4 - Mapping:', cleanName);
-                  }
-                  
-                  // Final cleanup
-                  cleanName = cleanName.replace(/[^a-zA-Z_]/g, '');
-                  console.log('Final cleaned name:', cleanName);
-                  return cleanName;
-                }}
-              />
-              <YAxis tick={{ fill: '#fff' }} />
-              <Tooltip 
-                formatter={(value: number) => value.toFixed(4)} 
-                contentStyle={{ backgroundColor: '#333', border: 'none' }}
-                labelFormatter={(label: string) => {
-                  console.log('Tooltip label:', label);
-                  
-                  // Use same logic as X-axis
-                  let cleanName: string;
-                  
-                  if (label.includes('<') || label.includes('>') || label.includes('=')) {
-                    const parts = label.split(/[<>=]/);
-                    cleanName = parts[0];
-                  } else if (label.includes('(')) {
-                    cleanName = label.split('(')[0];
-                  } else if (label.includes(' ')) {
-                    cleanName = label.split(' ')[0];
-                  } else {
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={result.lime_explanation}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis
+                  dataKey="feature"
+                  tick={{ fill: '#fff', fontSize: 12 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tickFormatter={(value: string) => {
+                    console.log('Original value:', value);
+                    console.log('Split on space:', value.split(' '));
+                    console.log('Split on >=:', value.split(/[<>=]/));
+                    console.log('Split on (:', value.split('('));
+
+                    // Map to clean feature names
                     const featureMap: Record<string, string> = {
                       'temp_max_F': 'temp max F',
                       'humidity_pct': 'humidity pct',
@@ -488,60 +422,98 @@ Example format:
                       'pop_density': 'pop density',
                       'slope': 'slope'
                     };
-                    
-                    let baseName = label.split(/[<>=]/)[0];
-                    baseName = baseName.split('(')[0];
-                    cleanName = featureMap[baseName] || baseName.replace(/[^a-zA-Z_]/g, '');
-                  }
-                  
-                  console.log('Tooltip cleaned name:', cleanName);
-                  return cleanName;
-                }}
-              />
-              <Bar dataKey="weight" name="Feature Impact">
-                {result.lime_explanation.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.weight >= 0 ? '#10b981' : '#ef4444'} 
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+
+                    let cleanName = value;
+                    // Split by comparison operators
+                    const parts = value.split(/[<>=]+/);
+
+                    // Find the part that is NOT a number
+                    for (const part of parts) {
+                      const trimmed = part.trim();
+                      if (!isNaN(Number(trimmed)) || trimmed.length === 0) continue;
+                      cleanName = trimmed;
+                      break;
+                    }
+
+                    // Final cleanup
+                    cleanName = cleanName.replace(/[^a-zA-Z0-9_]/g, '');
+                    cleanName = featureMap[cleanName] || cleanName;
+                    return cleanName;
+                  }}
+                />
+                <YAxis tick={{ fill: '#fff' }} />
+                <Tooltip
+                  formatter={(value: number) => value.toFixed(4)}
+                  contentStyle={{ backgroundColor: '#333', border: 'none' }}
+                  labelFormatter={(label: string) => {
+                    const featureMap: Record<string, string> = {
+                      'temp_max_F': 'temp max F',
+                      'humidity_pct': 'humidity pct',
+                      'windspeed_mph': 'windspeed mph',
+                      'precip_in': 'precip in',
+                      'ndvi': 'ndvi',
+                      'pop_density': 'pop density',
+                      'slope': 'slope'
+                    };
+
+                    let cleanName = label;
+                    const parts = label.split(/[<>=]+/);
+
+                    for (const part of parts) {
+                      const trimmed = part.trim();
+                      if (!isNaN(Number(trimmed)) || trimmed.length === 0) continue;
+                      cleanName = trimmed;
+                      break;
+                    }
+
+                    cleanName = cleanName.replace(/[^a-zA-Z0-9_]/g, '');
+                    return featureMap[cleanName] || cleanName;
+                  }}
+                />
+                <Bar dataKey="weight" name="Feature Impact">
+                  {result.lime_explanation.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.weight > 0 ? '#10b981' : '#ef4444'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          
+
           {/* Sensitivity Analysis (SIDE) */}
           {sensitivityData && (
             <div className="bg-white/5 rounded-lg border border-white/20 p-4 mt-6">
               <h3 className="text-xl font-semibold mb-2">Sensitivity Analysis (SIDE)</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart 
+                <BarChart
                   data={Object.entries(sensitivityData.sensitivities)
                     .filter(([feature]) => !feature.includes('precip'))
                     .map(([feature, data]) => ({
-                    feature: feature.replace(/_/g, ' '),
-                    sensitivity: (data as any).gradient_log_scale
-                  }))} 
+                      feature: feature.replace(/_/g, ' '),
+                      sensitivity: (data as any).gradient_log_scale
+                    }))}
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis 
-                    dataKey="feature" 
-                    tick={{ fill: '#fff', fontSize: 12 }} 
-                    angle={-45} 
-                    textAnchor="end" 
+                  <XAxis
+                    dataKey="feature"
+                    tick={{ fill: '#fff', fontSize: 12 }}
+                    angle={-45}
+                    textAnchor="end"
                     height={80}
                   />
                   <YAxis tick={{ fill: '#fff' }} />
-                  <Tooltip 
-                    formatter={(value: number) => value.toFixed(4)} 
+                  <Tooltip
+                    formatter={(value: number) => value.toFixed(4)}
                     contentStyle={{ backgroundColor: '#333', border: 'none' }}
                   />
                   <Bar dataKey="sensitivity" name="Sensitivity Impact">
                     {Object.entries(sensitivityData.sensitivities).map(([feature, data]) => (
-                      <Cell 
-                        key={`cell-${feature}`} 
-                        fill={(data as any).gradient_log_scale >= 0 ? '#ef4444' : '#3b82f6'} 
+                      <Cell
+                        key={`cell-${feature}`}
+                        fill={(data as any).gradient_log_scale >= 0 ? '#ef4444' : '#3b82f6'}
                       />
                     ))}
                   </Bar>
@@ -549,12 +521,12 @@ Example format:
               </ResponsiveContainer>
             </div>
           )}
-          
+
           {/* GPT Recommendations */}
           {(gptRecommendations || gptLoading) && (
             <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/20">
               <h3 className="text-lg font-semibold mb-4 text-brand-orange">Recommendations</h3>
-              
+
               {gptLoading ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
@@ -586,10 +558,10 @@ Example format:
                     const lines = gptRecommendations.split('\n');
                     const recommendations = [];
                     let currentRecommendation = '';
-                    
+
                     for (const line of lines) {
                       const trimmedLine = line.trim();
-                      
+
                       // Check if this is a new recommendation (starts with number/bullet)
                       if (/^\d+\.|•|[-*]/.test(trimmedLine)) {
                         // Save previous recommendation if exists
@@ -603,12 +575,12 @@ Example format:
                         currentRecommendation += ' ' + trimmedLine;
                       }
                     }
-                    
+
                     // Add last recommendation
                     if (currentRecommendation.trim()) {
                       recommendations.push(currentRecommendation.trim());
                     }
-                    
+
                     return recommendations.map((recommendation, index) => (
                       <div key={index} className="p-3 bg-white/10 rounded-lg border-l-4 border-brand-orange">
                         <div className="flex items-start gap-3">
