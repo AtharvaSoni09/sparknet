@@ -11,7 +11,7 @@ const Contact: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus('loading');
-    
+
     try {
       // Submit to Google Apps Script
       const response = await fetch('https://script.google.com/macros/s/AKfycbxX7ibS1fZJz_NvMLohdvyOl2B2hjL2aE8kgX_cW43Qjs-XLJB6Qyg5CLvHbekiocS7/exec', {
@@ -41,7 +41,7 @@ const Contact: React.FC = () => {
       <div className="text-center mb-12">
         <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">Get in touch</h1>
         <p className="text-xl text-gray-400">
-          Whether you're a citizen, firefighter, or researcher, we want to hear from you.
+          We want to hear from you. Email us here (preferred): atharvasoni08@gmail.com or yashpkher@gmail.com or use the contact us page below.
         </p>
       </div>
 
@@ -53,11 +53,11 @@ const Contact: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">You're on the list!</h3>
             <p className="text-gray-400">Thank you for joining the fight against wildfires.</p>
-            <button 
-                onClick={() => setStatus('idle')}
-                className="mt-8 text-sm text-brand-orange hover:text-orange-400 underline"
+            <button
+              onClick={() => setStatus('idle')}
+              className="mt-8 text-sm text-brand-orange hover:text-orange-400 underline"
             >
-                Register another email
+              Register another email
             </button>
           </div>
         ) : status === 'error' ? (
@@ -67,11 +67,11 @@ const Contact: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">Something went wrong</h3>
             <p className="text-gray-400">Please try again or email us at mail.sparknet@gmail.com</p>
-            <button 
-                onClick={() => setStatus('idle')}
-                className="mt-8 text-sm text-brand-orange hover:text-orange-400 underline"
+            <button
+              onClick={() => setStatus('idle')}
+              className="mt-8 text-sm text-brand-orange hover:text-orange-400 underline"
             >
-                Try again
+              Try again
             </button>
           </div>
         ) : (
@@ -102,34 +102,33 @@ const Contact: React.FC = () => {
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {['Citizen', 'Firefighter', 'Researcher'].map((type) => (
-                    <button
-                        key={type}
-                        type="button"
-                        onClick={() => setUserType(type.toLowerCase())}
-                        className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                            userType === type.toLowerCase()
-                                ? 'bg-brand-orange text-white shadow-lg shadow-orange-500/20'
-                                : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
-                        }`}
-                    >
-                        {type}
-                    </button>
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setUserType(type.toLowerCase())}
+                    className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${userType === type.toLowerCase()
+                      ? 'bg-brand-orange text-white shadow-lg shadow-orange-500/20'
+                      : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
+                      }`}
+                  >
+                    {type}
+                  </button>
                 ))}
               </div>
             </div>
 
             <div className="space-y-2">
-                <label htmlFor="message" className="block text-sm font-medium text-gray-300">
-                    Message (Optional)
-                </label>
-                <textarea
-                    id="message"
-                    rows={4}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    className="block w-full p-3 border border-white/10 rounded-lg leading-5 bg-slate-900/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition duration-150 ease-in-out sm:text-sm backdrop-blur-sm"
-                    placeholder="Tell us why you are interested..."
-                ></textarea>
+              <label htmlFor="message" className="block text-sm font-medium text-gray-300">
+                Message (Optional)
+              </label>
+              <textarea
+                id="message"
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="block w-full p-3 border border-white/10 rounded-lg leading-5 bg-slate-900/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition duration-150 ease-in-out sm:text-sm backdrop-blur-sm"
+                placeholder="Tell us why you are interested..."
+              ></textarea>
             </div>
 
             <button
@@ -146,10 +145,10 @@ const Contact: React.FC = () => {
           </form>
         )}
       </GlassCard>
-      
+
       <div className="mt-12 text-center">
         <p className="text-gray-500 text-sm">
-            Contact us directly at <a href="mailto:mail.sparknet@gmail.com" className="text-brand-orange hover:underline">mail.sparknet@gmail.com</a>
+          Contact us directly at <a href="mailto:mail.sparknet@gmail.com" className="text-brand-orange hover:underline">mail.sparknet@gmail.com</a>
         </p>
       </div>
     </div>
