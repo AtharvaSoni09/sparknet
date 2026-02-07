@@ -1,5 +1,5 @@
 import React from 'react';
-import { Github, Instagram } from 'lucide-react';
+import { Github } from 'lucide-react';
 
 const Footer: React.FC = () => {
   return (
@@ -18,11 +18,9 @@ const Footer: React.FC = () => {
           <a href="https://github.com/yashkher-123/fire" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
             <Github className="w-5 h-5" />
           </a>
-          <a href="https://www.instagram.com/sparknetai?igsh=NTc4MTIwNjQ2YQ%3D%3D&utm_source=qr" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
-            <Instagram className="w-5 h-5" />
-          </a>
+
         </div>
-        
+
         <div className="text-gray-500 text-xs">
           © {new Date().getFullYear()} SparkNet. All rights reserved.
         </div>
