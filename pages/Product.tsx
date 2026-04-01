@@ -482,10 +482,10 @@ Example format:
             </ResponsiveContainer>
           </div>
 
-          {/* Sensitivity Analysis (SIDE) */}
+          {/* Sensitivity Analysis (SAGE) */}
           {sensitivityData && (
             <div className="bg-white/5 rounded-lg border border-white/20 p-4 mt-6">
-              <h3 className="text-xl font-semibold mb-2">Sensitivity Analysis (SIDE)</h3>
+              <h3 className="text-xl font-semibold mb-2">Sensitivity Analysis (SAGE)</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart
                   data={Object.entries(sensitivityData.sensitivities)
