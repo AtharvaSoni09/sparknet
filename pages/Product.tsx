@@ -70,7 +70,7 @@ const Product: React.FC = () => {
     setFeatures({ ...features, [name]: value });
   };
 
-  const getGPTRecommendations = async (sensitivityData: SensitivityResult) => {
+  const getGPTRecommendations = async (sensitivityData: SensitivityResult, limeData: LimeExplanation[]) => {
     try {
       setGptLoading(true);
 
@@ -92,17 +92,44 @@ const Product: React.FC = () => {
           impact: data.gradient_log_scale > 0 ? 'increases' : 'decreases'
         }));
 
-      const prompt = `Based on this wildfire sensitivity analysis, provide specific firefighting recommendations:
+      // Build LIME section for the prompt
+      const limeSection = limeData && limeData.length > 0
+        ? `\nLIME FEATURE IMPORTANCE (how each feature's current value contributed to this specific prediction):\n${limeData.map(item => {
+            // Extract clean feature name
+            let name = item.feature;
+            const parts = name.split(/[<>=]+/);
+            for (const part of parts) {
+              const trimmed = part.trim();
+              if (!isNaN(Number(trimmed)) || trimmed.length === 0) continue;
+              name = trimmed;
+              break;
+            }
+            return `${name}: weight ${item.weight > 0 ? '+' : ''}${item.weight.toFixed(4)} (${item.weight > 0 ? 'pushes prediction UP' : 'pushes prediction DOWN'})`;
+          }).join('\n')}\n`
+        : '';
 
+      const prompt = `Based on this wildfire analysis data, provide specific firefighting recommendations.
+
+You have TWO sources of data:
+1. SENSITIVITY (SIDE) — tells you how much the prediction WOULD change if each feature changed. Think of it as "which levers matter most."
+2. LIME — tells you how each feature's CURRENT VALUE contributed to THIS specific prediction. Think of it as "what is driving this particular result."
+
+Use BOTH to give the most informed recommendations.
+
+--- SENSITIVITY DATA (SIDE) ---
 RAW SENSITIVITY DATA (Complete Dataset):
 ${Object.entries(sensitivities).map(([feature, data]) => `${feature}: ${data.gradient_log_scale.toFixed(6)}`).join('\n')}
 
 Top affecting features (by sensitivity magnitude):
 ${sortedFeatures.map(f => `• ${f.feature}: ${f.impact} fire risk (sensitivity: ${f.sensitivity.toFixed(4)})`).join('\n')}
 
+--- LIME FEATURE IMPORTANCE ---
+${limeSection}
+--- END DATA ---
+
 Current prediction: ${sensitivityData.prediction_acres.toFixed(2)} acres
 
-IMPORTANT: Analyze ALL raw sensitivity data above. Each feature's gradient_log_scale value shows exactly how much it impacts fire prediction. Positive values increase fire risk, negative values decrease it.
+IMPORTANT: Analyze ALL data above. Sensitivity values show how much changing a feature impacts fire prediction. LIME weights show how each feature's current value pushes this specific prediction up or down. Positive values increase fire risk, negative values decrease it.
 
 CRITICAL: DO NOT mention precipitation, rain, or water-related weather in your recommendations. Focus on temperature, humidity, wind, vegetation, terrain, and population density factors only.
 - dont reference precipitation data at all
@@ -120,20 +147,20 @@ FORMAT REQUIREMENTS:
 - Each recommendation should be one complete thought
 - Each recomendation should be on the same line. Then, for the next reccomendation, it should be on a NEW LINE.
 - GIVE SPECIFIC AND ACTIONABLE RECCOMENDATIONS. DONT BE VAGUE.
-- MAKE SURE EACH RECCOMENDATION HAS SPECIFIC FEATURE REFERENCED AFTER THE BASE RECOMMENDATION. in other words, add the feature's raw sensitivity data AFTER
+- For EACH recommendation, reference BOTH the sensitivity AND the LIME data at the end in parentheses. Example: (sensitivity: 0.324, LIME weight: +0.18)
 - ENSURE U MAKE RECCOMENDATIONS
 More instructions:
 - ensure that recommendations are actionable and specific
-- ensure that recommendations are based on raw sensitivity data provided
+- ensure that recommendations are based on BOTH sensitivity AND LIME data provided
 - ensure that reccomendations are POSSIBLE in a TIMELY MANNER
-- REFERENCE SPECIFIC DATA FROM SENS FROM THE RAW SENSITIVITY DATA PROVIDED IN YOUR RECS
+- REFERENCE SPECIFIC DATA from BOTH sensitivity AND LIME in your recommendations
         - (add to end of recommendation)
 - DO NOT include precipitation, rain, or water weather recommendations
-- examples below are ONLY examples.if they break any of these rules, dont use it.
+- examples below are ONLY examples. if they break any of these rules, dont use it.
 Example format:
-1. Deploy fire retardant in high humidity areas to reduce fire spread (humidity_pct: -0.446194).
-2. Create fire breaks in regions with high wind speeds (windspeed_mph: 0.324567).
-3. Use controlled burns to manage vegetation density in high NDVI areas (ndvi: 0.234567).`;
+1. Deploy fire retardant in high humidity areas to reduce fire spread (sensitivity: -0.4462, LIME weight: -0.0817).
+2. Create fire breaks in regions with high wind speeds (sensitivity: 0.3246, LIME weight: +0.2341).
+3. Use controlled burns to manage vegetation density in high NDVI areas (sensitivity: 0.2346, LIME weight: +0.1523).`;
 
       // Fallback: Simple retry message if OpenAI fails
       const fallbackRecommendations = 'Recommendations service temporarily unavailable. Please try prediction again. If issue persists, contact us.';
@@ -288,7 +315,7 @@ Example format:
 
         // Get ChatGPT recommendations
         setLoadingStage('Getting AI recommendations...');
-        await getGPTRecommendations(sensitivityData);
+        await getGPTRecommendations(sensitivityData, data.lime_explanation || []);
       }
 
     } catch (err) {
